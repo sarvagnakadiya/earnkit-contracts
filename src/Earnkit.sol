@@ -2,14 +2,15 @@
 pragma solidity ^0.8.25;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {TickMath} from "../src/libraries/TickMath.sol";
 
-import {INonfungiblePositionManager, IUniswapV3Factory, ILockerFactory, ILocker, ExactInputSingleParams, ISwapRouter} from "./interface/Interface.sol";
-import {ClankerToken} from "./Earnkit_token.sol";
+import {INonfungiblePositionManager, IUniswapV3Factory, ExactInputSingleParams, ISwapRouter} from "./Interfaces/IEarnkit.sol";
+import {ILocker} from "./Interfaces/ILpLocker.sol";
+import {EarnkitToken} from "./Earnkit_token.sol";
 import {LpLockerv2} from "./LpLocker.sol";
 
-contract Clanker is Ownable {
+contract Earnkit is Ownable {
     using TickMath for int24;
 
     error Deprecated();
@@ -19,7 +20,6 @@ contract Clanker is Ownable {
     error TokenNotFound(address token);
 
     LpLockerv2 public liquidityLocker;
-    string public constant version = "0.0.2";
 
     address public weth = 0x4200000000000000000000000000000000000006;
 
@@ -148,7 +148,7 @@ contract Clanker is Ownable {
         external
         payable
         onlyOwnerOrAdmin
-        returns (ClankerToken token, uint256 positionId)
+        returns (EarnkitToken token, uint256 positionId)
     {
         if (deprecated) revert Deprecated();
         if (!allowedPairedTokens[_poolConfig.pairedToken])
@@ -160,7 +160,7 @@ contract Clanker is Ownable {
             "Invalid tick"
         );
 
-        token = new ClankerToken{salt: keccak256(abi.encode(_deployer, _salt))}(
+        token = new EarnkitToken{salt: keccak256(abi.encode(_deployer, _salt))}(
             _name,
             _symbol,
             _supply,
@@ -186,15 +186,16 @@ contract Clanker is Ownable {
             uint256 amountOut = msg.value;
             // If it's not WETH, we must buy the token first...
             if (_poolConfig.pairedToken != weth) {
-                ExactInputSingleParams memory swapParams = ExactInputSingleParams({
-                    tokenIn: weth, // The token we are exchanging from (ETH wrapped as WETH)
-                    tokenOut: _poolConfig.pairedToken, // The token we are exchanging to
-                    fee: _poolConfig.devBuyFee, // The pool fee
-                    recipient: address(this), // The recipient address
-                    amountIn: msg.value, // The amount of ETH (WETH) to be swapped
-                    amountOutMinimum: 0, // Minimum amount to receive
-                    sqrtPriceLimitX96: 0 // No price limit
-                });
+                ExactInputSingleParams
+                    memory swapParams = ExactInputSingleParams({
+                        tokenIn: weth, // The token we are exchanging from (ETH wrapped as WETH)
+                        tokenOut: _poolConfig.pairedToken, // The token we are exchanging to
+                        fee: _poolConfig.devBuyFee, // The pool fee
+                        recipient: address(this), // The recipient address
+                        amountIn: msg.value, // The amount of ETH (WETH) to be swapped
+                        amountOutMinimum: 0, // Minimum amount to receive
+                        sqrtPriceLimitX96: 0 // No price limit
+                    });
 
                 amountOut = ISwapRouter(swapRouter).exactInputSingle{ // The call to `exactInputSingle` executes the swap.
                     value: msg.value
@@ -206,15 +207,16 @@ contract Clanker is Ownable {
                 );
             }
 
-            ExactInputSingleParams memory swapParamsToken = ExactInputSingleParams({
-                tokenIn: _poolConfig.pairedToken, // The token we are exchanging from (ETH wrapped as WETH)
-                tokenOut: address(token), // The token we are exchanging to
-                fee: _fee, // The pool fee
-                recipient: _deployer, // The recipient address
-                amountIn: amountOut, // The amount of ETH (WETH) to be swapped
-                amountOutMinimum: 0, // Minimum amount to receive
-                sqrtPriceLimitX96: 0 // No price limit
-            });
+            ExactInputSingleParams
+                memory swapParamsToken = ExactInputSingleParams({
+                    tokenIn: _poolConfig.pairedToken, // The token we are exchanging from (ETH wrapped as WETH)
+                    tokenOut: address(token), // The token we are exchanging to
+                    fee: _fee, // The pool fee
+                    recipient: _deployer, // The recipient address
+                    amountIn: amountOut, // The amount of ETH (WETH) to be swapped
+                    amountOutMinimum: 0, // Minimum amount to receive
+                    sqrtPriceLimitX96: 0 // No price limit
+                });
 
             // The call to `exactInputSingle` executes the swap.
             ISwapRouter(swapRouter).exactInputSingle{

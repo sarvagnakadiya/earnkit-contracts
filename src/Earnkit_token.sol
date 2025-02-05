@@ -7,7 +7,7 @@ import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20P
 import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
 
-contract ClankerToken is ERC20, ERC20Permit, ERC20Votes, ERC20Burnable {
+contract EarnkitToken is ERC20, ERC20Permit, ERC20Votes, ERC20Burnable {
     error NotDeployer();
 
     string private _name;

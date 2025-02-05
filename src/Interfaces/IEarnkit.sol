@@ -35,17 +35,6 @@ interface INonfungiblePositionManager {
             uint256 amount1
         );
 
-    function createAndInitializePoolIfNecessary(
-        address token0,
-        address token1,
-        uint24 fee,
-        uint160 sqrtPriceX96
-    ) external payable returns (address pool);
-
-    function collect(
-        CollectParams calldata params
-    ) external payable returns (uint256 amount0, uint256 amount1);
-
     function safeTransferFrom(
         address from,
         address to,
@@ -63,22 +52,6 @@ interface IUniswapV3Factory {
     ) external returns (address pool);
 
     function feeAmountTickSpacing(uint24 fee) external view returns (int24);
-}
-
-interface ILockerFactory {
-    function deploy(
-        address beneficiary,
-        uint256 fees
-    ) external payable returns (address);
-}
-
-interface ILocker {
-    function initializer(
-        uint256 wethPositionId,
-        uint256 clankerPositionId
-    ) external;
-
-    function collectRewards(uint256 _tokenId) external;
 }
 
 struct ExactInputSingleParams {

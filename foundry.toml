@@ -5,6 +5,15 @@ libs = ["lib"]
 
 solc = "0.8.26"
 
-remappings = ["@openzeppelin/=lib/openzeppelin-contracts/"]
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+
+evm_version = "cancun"
+
+remappings = [
+    "@openzeppelin/=lib/openzeppelin-contracts/",
+    "@uniswap/v3-core/=lib/v3-core/",
+]
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

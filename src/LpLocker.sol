@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.25;
 
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Context.sol";
-import "@openzeppelin/contracts/utils/Address.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
-import {NonFungibleContract} from "./IManager.sol";
+import {NonFungibleContract, ILocker} from "./Interfaces/ILpLocker.sol";
 
-contract LpLockerv2 is Ownable, IERC721Receiver {
+contract LpLockerv2 is Ownable, IERC721Receiver, ILocker {
     event LockId(uint256 _id);
     event Received(address indexed from, uint256 tokenId);
 
@@ -30,8 +28,8 @@ contract LpLockerv2 is Ownable, IERC721Receiver {
     address private immutable e721Token;
     address public positionManager = 0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1;
     string public constant version = "0.0.2";
-    uint256 public _clankerTeamReward;
-    address public _clankerTeamRecipient;
+    uint256 public _earnkitTeamReward;
+    address public _earnkitTeamRecipient;
     address public _factory;
     struct UserRewardRecipient {
         address recipient;
@@ -51,16 +49,16 @@ contract LpLockerv2 is Ownable, IERC721Receiver {
     mapping(address => uint256[]) public _userTokenIds;
 
     constructor(
-        address tokenFactory, // Address of the clanker factory
+        address tokenFactory, // Address of the earnkit factory
         address token, // Address of the ERC721 Uniswap V3 LP NFT
-        address clankerTeamRecipient, // clanker team address to receive portion of the fees
-        uint256 clankerTeamReward // clanker team reward percentage
-    ) Ownable(clankerTeamRecipient) {
+        address earnkitTeamRecipient, // earnkit team address to receive portion of the fees
+        uint256 earnkitTeamReward // earnkit team reward percentage
+    ) Ownable(earnkitTeamRecipient) {
         SafeERC721 = IERC721(token);
         e721Token = token;
         _factory = tokenFactory;
-        _clankerTeamReward = clankerTeamReward;
-        _clankerTeamRecipient = clankerTeamRecipient;
+        _earnkitTeamReward = earnkitTeamReward;
+        _earnkitTeamRecipient = earnkitTeamRecipient;
     }
 
     modifier onlyOwnerOrFactory() {
@@ -82,18 +80,18 @@ contract LpLockerv2 is Ownable, IERC721Receiver {
         });
     }
 
-    function updateClankerFactory(address newFactory) public onlyOwner {
+    function updateEarnkitFactory(address newFactory) public onlyOwner {
         _factory = newFactory;
     }
 
-    // Update the clanker team reward
-    function updateClankerTeamReward(uint256 newReward) public onlyOwner {
-        _clankerTeamReward = newReward;
+    // Update the earnkit team reward
+    function updateEarnkitTeamReward(uint256 newReward) public onlyOwner {
+        _earnkitTeamReward = newReward;
     }
 
-    // Update the clanker team recipient
-    function updateClankerTeamRecipient(address newRecipient) public onlyOwner {
-        _clankerTeamRecipient = newRecipient;
+    // Update the earnkit team recipient
+    function updateEarnkitTeamRecipient(address newRecipient) public onlyOwner {
+        _earnkitTeamRecipient = newRecipient;
     }
 
     // Withdraw ETH from the contract
@@ -108,7 +106,7 @@ contract LpLockerv2 is Ownable, IERC721Receiver {
     }
 
     // Use collect rewards to collect the rewards
-    function collectRewards(uint256 _tokenId) public {
+    function collectRewards(uint256 _tokenId) public override {
         // Get the _userRewardRecipients for the tokenId
         UserRewardRecipient
             memory userRewardRecipient = _userRewardRecipientForToken[_tokenId];
@@ -150,8 +148,9 @@ contract LpLockerv2 is Ownable, IERC721Receiver {
         IERC20 rewardToken0 = IERC20(token0);
         IERC20 rewardToken1 = IERC20(token1);
 
-        address teamRecipient = _clankerTeamRecipient;
-        uint256 teamReward = _clankerTeamReward;
+        // gas efficiency
+        address teamRecipient = _earnkitTeamRecipient;
+        uint256 teamReward = _earnkitTeamReward;
 
         TeamRewardRecipient
             memory overrideRewardRecipient = _teamOverrideRewardRecipientForToken[
@@ -236,7 +235,7 @@ contract LpLockerv2 is Ownable, IERC721Receiver {
         uint256 id,
         bytes calldata
     ) external override returns (bytes4) {
-        // Only clanker team EOA can send the NFT here
+        // Only earnkit team EOA can send the NFT here
         if (from != _factory) {
             revert NotAllowed(from);
         }

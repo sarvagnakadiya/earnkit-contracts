@@ -57,3 +57,7 @@ interface NonFungibleContract is IERC721 {
         CollectParams calldata params
     ) external payable returns (uint256 amount0, uint256 amount1);
 }
+
+interface ILocker {
+    function collectRewards(uint256 _tokenId) external;
+}
