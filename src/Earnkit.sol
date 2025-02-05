@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.25;
 
+import {LpLocker} from "./LpLocker.sol";
+import {EarnkitToken} from "./Earnkit_token.sol";
+import {ILocker} from "./Interfaces/ILpLocker.sol";
+import {TickMath} from "../src/libraries/TickMath.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {TickMath} from "../src/libraries/TickMath.sol";
 import {INonfungiblePositionManager, IUniswapV3Factory, ExactInputSingleParams, ISwapRouter} from "./Interfaces/IEarnkit.sol";
-import {ILocker} from "./Interfaces/ILpLocker.sol";
-import {EarnkitToken} from "./Earnkit_token.sol";
-import {LpLocker} from "./LpLocker.sol";
 
 contract Earnkit is Ownable {
     using TickMath for int24;
@@ -49,12 +49,6 @@ contract Earnkit is Ownable {
         address lockerAddress,
         string castHash
     );
-
-    // modifier onlyOwnerOrAdmin() {
-    //     if (msg.sender != owner() && !admins[msg.sender])
-    //         revert NotAdmin(msg.sender);
-    //     _;
-    // }
 
     constructor(
         address locker_,
