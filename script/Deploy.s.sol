@@ -25,6 +25,8 @@ contract DeployEarnkit is Script {
         address owner = vm.envAddress("OWNER_ADDRESS");
         uint256 teamReward = vm.envUint("TEAM_REWARD_PERCENTAGE");
         address teamRecipient = vm.envAddress("TEAM_RECIPIENT_ADDRESS");
+        address aiAgentRecipient = vm.envAddress("AI_AGENT_RECIPIENT_ADDRESS");
+        uint256 aiAgentReward = vm.envUint("AI_AGENT_REWARD_PERCENTAGE");
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -32,7 +34,9 @@ contract DeployEarnkit is Script {
         LpLocker locker = new LpLocker(
             teamRecipient,
             teamReward,
-            POSITION_MANAGER
+            POSITION_MANAGER,
+            aiAgentRecipient,
+            aiAgentReward
         );
 
         // Deploy Earnkit

@@ -13,6 +13,7 @@ contract LpLocker is Ownable, IERC721Receiver, ILocker {
     error ExceedsMaxBps();
     error NotAllowed(address user);
     error InvalidTokenId(uint256 tokenId);
+    error InvalidRewardPercentage();
 
     // Constants
     uint256 private constant MAX_BPS = 100;
@@ -33,6 +34,8 @@ contract LpLocker is Ownable, IERC721Receiver, ILocker {
     uint256 public _earnkitTeamReward;
     address public _earnkitTeamRecipient;
     address public _factory;
+    uint256 public _aiAgentReward;
+    address public _aiAgentRecipient;
 
     // Modifiers
     modifier validateBps(uint256 bps) {
@@ -64,11 +67,15 @@ contract LpLocker is Ownable, IERC721Receiver, ILocker {
     constructor(
         address earnkitTeamRecipient, // earnkit team address to receive portion of the fees
         uint256 earnkitTeamReward, // earnkit team reward percentage
-        address _positionManager
+        address _positionManager,
+        address aiAgentRecipient, // AI agent address to receive portion of the fees
+        uint256 aiAgentReward // AI agent reward percentage (10%)
     ) Ownable(earnkitTeamRecipient) {
         _earnkitTeamReward = earnkitTeamReward;
         _earnkitTeamRecipient = earnkitTeamRecipient;
         positionManager = _positionManager;
+        _aiAgentRecipient = aiAgentRecipient;
+        _aiAgentReward = aiAgentReward;
     }
 
     function setOverrideTeamRewardsForToken(
@@ -76,6 +83,9 @@ contract LpLocker is Ownable, IERC721Receiver, ILocker {
         address newTeamRecipient,
         uint256 newTeamReward
     ) public onlyOwner validateBps(newTeamReward) {
+        if (newTeamReward + _aiAgentReward > MAX_BPS) {
+            revert InvalidRewardPercentage();
+        }
         _teamOverrideRewardRecipientForToken[tokenId] = TeamRewardRecipient({
             recipient: newTeamRecipient,
             reward: newTeamReward,
@@ -91,12 +101,30 @@ contract LpLocker is Ownable, IERC721Receiver, ILocker {
     function updateEarnkitTeamReward(
         uint256 newReward
     ) public onlyOwner validateBps(newReward) {
+        if (newReward + _aiAgentReward > MAX_BPS) {
+            revert InvalidRewardPercentage();
+        }
         _earnkitTeamReward = newReward;
     }
 
     // Update the earnkit team recipient
     function updateEarnkitTeamRecipient(address newRecipient) public onlyOwner {
         _earnkitTeamRecipient = newRecipient;
+    }
+
+    // Update the AI agent recipient
+    function updateAiAgentRecipient(address newRecipient) public onlyOwner {
+        _aiAgentRecipient = newRecipient;
+    }
+
+    // Update the AI agent reward
+    function updateAiAgentReward(
+        uint256 newReward
+    ) public onlyOwner validateBps(newReward) {
+        if (newReward + _earnkitTeamReward > MAX_BPS) {
+            revert InvalidRewardPercentage();
+        }
+        _aiAgentReward = newReward;
     }
 
     // Withdraw ETH from the contract
@@ -154,6 +182,8 @@ contract LpLocker is Ownable, IERC721Receiver, ILocker {
         // gas efficiency
         address teamRecipient = _earnkitTeamRecipient;
         uint256 teamReward = _earnkitTeamReward;
+        address aiRecipient = _aiAgentRecipient;
+        uint256 aiReward = _aiAgentReward;
 
         TeamRewardRecipient
             memory overrideRewardRecipient = _teamOverrideRewardRecipientForToken[
@@ -165,17 +195,25 @@ contract LpLocker is Ownable, IERC721Receiver, ILocker {
             teamReward = overrideRewardRecipient.reward;
         }
 
+        // Calculate rewards for each party
         uint256 protocolReward0 = (amount0 * teamReward) / 100;
         uint256 protocolReward1 = (amount1 * teamReward) / 100;
 
-        uint256 recipientReward0 = amount0 - protocolReward0;
-        uint256 recipientReward1 = amount1 - protocolReward1;
+        uint256 aiAgentReward0 = (amount0 * aiReward) / 100;
+        uint256 aiAgentReward1 = (amount1 * aiReward) / 100;
 
+        uint256 recipientReward0 = amount0 - protocolReward0 - aiAgentReward0;
+        uint256 recipientReward1 = amount1 - protocolReward1 - aiAgentReward1;
+
+        // Transfer rewards to each party
         rewardToken0.transfer(_recipient, recipientReward0);
         rewardToken1.transfer(_recipient, recipientReward1);
 
         rewardToken0.transfer(teamRecipient, protocolReward0);
         rewardToken1.transfer(teamRecipient, protocolReward1);
+
+        rewardToken0.transfer(aiRecipient, aiAgentReward0);
+        rewardToken1.transfer(aiRecipient, aiAgentReward1);
 
         emit ClaimedRewards(
             _recipient,

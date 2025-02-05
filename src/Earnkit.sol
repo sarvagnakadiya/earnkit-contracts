@@ -156,7 +156,18 @@ contract Earnkit is Ownable {
             _castHash
         );
 
-        token.approve(address(positionManager), _supply);
+        // Calculate 10% of total supply for deployer
+        uint256 deployerAmount = (_supply * 10) / 100;
+
+        uint256 liquidityAmount = _supply - deployerAmount;
+
+        // Transfer 10% to deployer
+        // TODO: approve to campaign contract directly instead
+        //       currently, we are transferring to the deployer first
+        token.transfer(_deployer, deployerAmount);
+
+        // Approve remaining 90% for position manager
+        token.approve(address(positionManager), liquidityAmount);
 
         positionId = configurePool(
             address(token),
@@ -164,7 +175,7 @@ contract Earnkit is Ownable {
             _poolConfig.tick,
             tickSpacing,
             _fee,
-            _supply,
+            liquidityAmount,
             _deployer
         );
 
