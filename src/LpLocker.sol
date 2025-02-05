@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.25;
+pragma solidity ^0.8.26;
 
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -10,7 +10,12 @@ import {NonFungibleContract, ILocker} from "./Interfaces/ILpLocker.sol";
 contract LpLocker is Ownable, IERC721Receiver, ILocker {
     event Received(address indexed from, uint256 tokenId);
 
+    error ExceedsMaxBps();
     error NotAllowed(address user);
+    error InvalidTokenId(uint256 tokenId);
+
+    // Constants
+    uint256 private constant MAX_BPS = 100;
 
     event ClaimedRewards(
         address indexed claimer,
@@ -28,6 +33,17 @@ contract LpLocker is Ownable, IERC721Receiver, ILocker {
     uint256 public _earnkitTeamReward;
     address public _earnkitTeamRecipient;
     address public _factory;
+
+    // Modifiers
+    modifier validateBps(uint256 bps) {
+        if (bps > MAX_BPS) revert ExceedsMaxBps();
+        _;
+    }
+
+    // modifier notZeroAddress(address addr) {
+    //     if (addr == address(0)) revert ZeroAddress();
+    //     _;
+    // }
     struct UserRewardRecipient {
         address recipient;
         uint256 lpTokenId;
@@ -59,7 +75,7 @@ contract LpLocker is Ownable, IERC721Receiver, ILocker {
         uint256 tokenId,
         address newTeamRecipient,
         uint256 newTeamReward
-    ) public onlyOwner {
+    ) public onlyOwner validateBps(newTeamReward) {
         _teamOverrideRewardRecipientForToken[tokenId] = TeamRewardRecipient({
             recipient: newTeamRecipient,
             reward: newTeamReward,
@@ -72,7 +88,9 @@ contract LpLocker is Ownable, IERC721Receiver, ILocker {
     }
 
     // Update the earnkit team reward
-    function updateEarnkitTeamReward(uint256 newReward) public onlyOwner {
+    function updateEarnkitTeamReward(
+        uint256 newReward
+    ) public onlyOwner validateBps(newReward) {
         _earnkitTeamReward = newReward;
     }
 
@@ -100,7 +118,7 @@ contract LpLocker is Ownable, IERC721Receiver, ILocker {
 
         address _recipient = userRewardRecipient.recipient;
 
-        require(_recipient != address(0), "Invalid tokenId");
+        if (_recipient == address(0)) revert InvalidTokenId(_tokenId);
 
         NonFungibleContract nonfungiblePositionManager = NonFungibleContract(
             positionManager
@@ -179,10 +197,8 @@ contract LpLocker is Ownable, IERC721Receiver, ILocker {
     function addUserRewardRecipient(
         UserRewardRecipient memory recipient
     ) public {
-        require(
-            msg.sender == owner() || msg.sender == _factory,
-            "only owner or factory allowed to add user reward recipient"
-        );
+        if (msg.sender != owner() && msg.sender != _factory)
+            revert NotAllowed(msg.sender);
         _userRewardRecipientForToken[recipient.lpTokenId] = recipient;
         _userTokenIds[recipient.recipient].push(recipient.lpTokenId);
     }

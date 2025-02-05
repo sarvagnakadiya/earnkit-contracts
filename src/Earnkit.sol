@@ -12,6 +12,11 @@ import {INonfungiblePositionManager, IUniswapV3Factory, ExactInputSingleParams, 
 contract Earnkit is Ownable {
     using TickMath for int24;
 
+    error InvalidSalt();
+    error NotOwnerOrAdmin();
+    error NotAllowedPairedToken(address tokenAddress);
+    error TokenNotFound(address token);
+    error InvalidTick(int24 tick, int24 tickSpacing);
     LpLocker public liquidityLocker;
 
     address public constant weth = 0x4200000000000000000000000000000000000006;
@@ -78,7 +83,7 @@ contract Earnkit is Ownable {
         uint256 supplyPerPool,
         address deployer
     ) internal returns (uint256 positionId) {
-        require(newToken < pairedToken, "Invalid salt");
+        if (newToken > pairedToken) revert InvalidSalt();
 
         uint160 sqrtPriceX96 = tick.getSqrtRatioAtTick();
 
@@ -130,20 +135,16 @@ contract Earnkit is Ownable {
         string memory _castHash,
         PoolConfig memory _poolConfig
     ) external payable returns (EarnkitToken token, uint256 positionId) {
-        require(
-            msg.sender == owner() || admins[msg.sender],
-            "Only owner or admins can deploy tokens"
-        );
-        require(
-            allowedPairedTokens[_poolConfig.pairedToken],
-            "The paired token is not allowed for this pool configuration."
-        );
+        if (!admins[msg.sender] && msg.sender != owner())
+            revert NotOwnerOrAdmin();
+
+        if (!allowedPairedTokens[_poolConfig.pairedToken])
+            revert NotAllowedPairedToken(_poolConfig.pairedToken);
 
         int24 tickSpacing = uniswapV3Factory.feeAmountTickSpacing(_fee);
-        require(
-            tickSpacing != 0 && _poolConfig.tick % tickSpacing == 0,
-            "Invalid tick"
-        );
+        if (tickSpacing == 0 || _poolConfig.tick % tickSpacing != 0) {
+            revert InvalidTick(_poolConfig.tick, tickSpacing);
+        }
 
         token = new EarnkitToken{salt: keccak256(abi.encode(_deployer, _salt))}(
             _name,
@@ -245,7 +246,8 @@ contract Earnkit is Ownable {
     function claimRewards(address token) external {
         DeploymentInfo memory deploymentInfo = deploymentInfoForToken[token];
 
-        require(deploymentInfo.token != address(0), "Token not found");
+        if (deploymentInfo.token == address(0))
+            revert TokenNotFound(deploymentInfo.token);
 
         ILocker(deploymentInfo.locker).collectRewards(
             deploymentInfo.positionId
