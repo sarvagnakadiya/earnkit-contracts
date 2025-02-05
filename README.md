@@ -64,3 +64,7 @@ $ forge --help
 $ anvil --help
 $ cast --help
 ```
+
+```shell
+forge script script/Deploy.s.sol --rpc-url $RPC_URL -vvvv --broadcast --verify --etherscan-api-key $ETHERSCAN_API_KEY
+```

@@ -4,38 +4,29 @@ pragma solidity ^0.8.25;
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {TickMath} from "../src/libraries/TickMath.sol";
-
 import {INonfungiblePositionManager, IUniswapV3Factory, ExactInputSingleParams, ISwapRouter} from "./Interfaces/IEarnkit.sol";
 import {ILocker} from "./Interfaces/ILpLocker.sol";
 import {EarnkitToken} from "./Earnkit_token.sol";
-import {LpLockerv2} from "./LpLocker.sol";
+import {LpLocker} from "./LpLocker.sol";
 
 contract Earnkit is Ownable {
     using TickMath for int24;
 
-    error Deprecated();
-    error InvalidConfig();
-    error NotAdmin(address user);
-    error NotAllowedPairedToken(address token);
-    error TokenNotFound(address token);
+    LpLocker public liquidityLocker;
 
-    LpLockerv2 public liquidityLocker;
+    address public constant weth = 0x4200000000000000000000000000000000000006;
 
-    address public weth = 0x4200000000000000000000000000000000000006;
-
-    IUniswapV3Factory public uniswapV3Factory;
-    INonfungiblePositionManager public positionManager;
-    address public swapRouter;
-
-    bool public deprecated;
+    IUniswapV3Factory public immutable uniswapV3Factory;
+    INonfungiblePositionManager public immutable positionManager;
+    address public immutable swapRouter;
 
     mapping(address => bool) public admins;
     mapping(address => bool) public allowedPairedTokens;
 
     struct PoolConfig {
-        int24 tick;
         address pairedToken;
         uint24 devBuyFee;
+        int24 tick;
     }
 
     struct DeploymentInfo {
@@ -59,11 +50,11 @@ contract Earnkit is Ownable {
         string castHash
     );
 
-    modifier onlyOwnerOrAdmin() {
-        if (msg.sender != owner() && !admins[msg.sender])
-            revert NotAdmin(msg.sender);
-        _;
-    }
+    // modifier onlyOwnerOrAdmin() {
+    //     if (msg.sender != owner() && !admins[msg.sender])
+    //         revert NotAdmin(msg.sender);
+    //     _;
+    // }
 
     constructor(
         address locker_,
@@ -72,7 +63,7 @@ contract Earnkit is Ownable {
         address swapRouter_,
         address owner_
     ) Ownable(owner_) {
-        liquidityLocker = LpLockerv2(locker_);
+        liquidityLocker = LpLocker(locker_);
         uniswapV3Factory = IUniswapV3Factory(uniswapV3Factory_);
         positionManager = INonfungiblePositionManager(positionManager_);
         swapRouter = swapRouter_;
@@ -126,7 +117,7 @@ contract Earnkit is Ownable {
         );
 
         liquidityLocker.addUserRewardRecipient(
-            LpLockerv2.UserRewardRecipient({
+            LpLocker.UserRewardRecipient({
                 recipient: deployer,
                 lpTokenId: positionId
             })
@@ -144,15 +135,15 @@ contract Earnkit is Ownable {
         string memory _image,
         string memory _castHash,
         PoolConfig memory _poolConfig
-    )
-        external
-        payable
-        onlyOwnerOrAdmin
-        returns (EarnkitToken token, uint256 positionId)
-    {
-        if (deprecated) revert Deprecated();
-        if (!allowedPairedTokens[_poolConfig.pairedToken])
-            revert NotAllowedPairedToken(_poolConfig.pairedToken);
+    ) external payable returns (EarnkitToken token, uint256 positionId) {
+        require(
+            msg.sender == owner() || admins[msg.sender],
+            "Only owner or admins can deploy tokens"
+        );
+        require(
+            allowedPairedTokens[_poolConfig.pairedToken],
+            "The paired token is not allowed for this pool configuration."
+        );
 
         int24 tickSpacing = uniswapV3Factory.feeAmountTickSpacing(_fee);
         require(
@@ -260,19 +251,15 @@ contract Earnkit is Ownable {
     function claimRewards(address token) external {
         DeploymentInfo memory deploymentInfo = deploymentInfoForToken[token];
 
-        if (deploymentInfo.token == address(0)) revert TokenNotFound(token);
+        require(deploymentInfo.token != address(0), "Token not found");
 
         ILocker(deploymentInfo.locker).collectRewards(
             deploymentInfo.positionId
         );
     }
 
-    function setDeprecated(bool _deprecated) external onlyOwner {
-        deprecated = _deprecated;
-    }
-
     function updateLiquidityLocker(address newLocker) external onlyOwner {
-        liquidityLocker = LpLockerv2(newLocker);
+        liquidityLocker = LpLocker(newLocker);
     }
 }
 

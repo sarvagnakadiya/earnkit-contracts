@@ -3,7 +3,7 @@ pragma solidity ^0.8.25;
 
 import {Script} from "forge-std/Script.sol";
 import {Earnkit} from "../src/Earnkit.sol";
-import {LpLockerv2} from "../src/LpLocker.sol";
+import {LpLocker} from "../src/LpLocker.sol";
 import {console} from "forge-std/console.sol";
 contract DeployEarnkit is Script {
     // Base Mainnet addresses
@@ -23,15 +23,16 @@ contract DeployEarnkit is Script {
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address owner = vm.envAddress("OWNER_ADDRESS");
+        uint256 teamReward = vm.envUint("TEAM_REWARD_PERCENTAGE");
+        address teamRecipient = vm.envAddress("TEAM_RECIPIENT_ADDRESS");
 
         vm.startBroadcast(deployerPrivateKey);
 
         // Deploy LpLocker first
-        LpLockerv2 locker = new LpLockerv2(
-            address(0), // tokenFactory - will be updated after Earnkit deployment
-            POSITION_MANAGER, // Uniswap V3 NFT position manager
-            owner, // earnkit team recipient
-            20 // earnkit team reward percentage (20%)
+        LpLocker locker = new LpLocker(
+            teamRecipient,
+            teamReward,
+            POSITION_MANAGER
         );
 
         // Deploy Earnkit
@@ -44,7 +45,7 @@ contract DeployEarnkit is Script {
         );
 
         // Update the factory address in LpLocker
-        // locker.updateEarnkitFactory(address(earnkit));
+        locker.updateEarnkitFactory(address(earnkit));
 
         // Transfer ownership of LpLocker to owner
         // locker.transferOwnership(owner);
