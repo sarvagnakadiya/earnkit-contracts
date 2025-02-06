@@ -1,3 +1,14 @@
+# deploy campaing
+```shell
+chmod +x script/deploy-campaign.sh
+./script/deploy-campaign.sh
+```
+
+# test
+```shell
+forge test
+```
+
 ## Foundry
 
 **Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
