@@ -138,11 +138,74 @@ contract CampaignTest is Test {
 
         console.log("Claimed campaign!!!");
         console.log("Claimed campaign amount:", token.balanceOf(claimer));
+
+        console.log(
+            "Protocol Rewards ETH Balance:",
+            address(deployer.protocolRewards()).balance
+        );
+
         // Verify claim
         assertEq(
             token.balanceOf(claimer),
             claimerBalanceBefore + amountPerClaim,
             "Incorrect claim amount received"
+        );
+        // verify protocol rewards balance
+        assertEq(
+            address(deployer.protocolRewards()).balance,
+            CLAIM_FEE,
+            "Incorrect protocol rewards balance"
+        );
+
+        // Get treasury balance before withdrawal
+        uint256 treasuryBalanceBefore = TREASURY.balance;
+
+        // Withdraw rewards to treasury
+        vm.prank(TREASURY); // Only treasury can withdraw its own rewards
+        deployer.protocolRewards().withdrawRewards(payable(TREASURY));
+
+        console.log(
+            "Protocol Rewards ETH Balance after withdrawal:",
+            address(deployer.protocolRewards()).balance
+        );
+        console.log("Treasury ETH Balance after withdrawal:", TREASURY.balance);
+
+        // Verify treasury received the claim fee
+        assertEq(
+            TREASURY.balance,
+            treasuryBalanceBefore + 105000000000000,
+            "Treasury did not receive correct claim fee"
+        );
+
+        console.log(
+            "Campaign manager ETH balance before:",
+            campaignManager.balance
+        );
+
+        uint256 campaignManagerBalanceBefore = campaignManager.balance;
+
+        vm.prank(campaignManager); // Only treasury can withdraw its own rewards
+        deployer.protocolRewards().withdrawRewards(payable(campaignManager));
+
+        assertEq(
+            campaignManager.balance,
+            campaignManagerBalanceBefore + 45000000000000,
+            "Campaign manager did not receive correct claim fee"
+        );
+        console.log(
+            "Campaign manager ETH balance after:",
+            campaignManager.balance
+        );
+        // console.log(
+        //     "Protocol Rewards ETH Balance after withdrawal of manager:",
+        //     address(deployer.protocolRewards()).balance
+        // );
+
+        // Verify protocol rewards contract balance is now 0
+        assertEq(
+            address(deployer.protocolRewards()).balance,
+            0,
+            "Protocol rewards contract should have 0 balance after withdrawal"
         );
     }
 

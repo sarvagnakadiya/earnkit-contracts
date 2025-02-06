@@ -9,22 +9,29 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {INonfungiblePositionManager, IUniswapV3Factory, ExactInputSingleParams, ISwapRouter} from "./Interfaces/IEarnkit.sol";
 
+/// @title Earnkit
+/// @notice Main contract for deploying and managing Earnkit tokens and liquidity pools
+/// @dev Handles token deployment, pool configuration, and reward distribution
 contract Earnkit is Ownable {
     using TickMath for int24;
 
+    // Custom errors
     error InvalidSalt();
-    error NotOwnerOrAdmin();
+    error NotOwnerOrAdmin(address caller);
     error NotAllowedPairedToken(address tokenAddress);
     error TokenNotFound(address token);
     error InvalidTick(int24 tick, int24 tickSpacing);
-    LpLocker public liquidityLocker;
 
-    address public constant weth = 0x4200000000000000000000000000000000000006;
+    // Constants
+    address public constant WETH = 0x4200000000000000000000000000000000000006;
 
+    // Immutable state variables
     IUniswapV3Factory public immutable uniswapV3Factory;
     INonfungiblePositionManager public immutable positionManager;
     address public immutable swapRouter;
 
+    // Storage variables
+    LpLocker public liquidityLocker;
     mapping(address => bool) public admins;
     mapping(address => bool) public allowedPairedTokens;
 
@@ -44,9 +51,9 @@ contract Earnkit is Ownable {
     mapping(address => DeploymentInfo) public deploymentInfoForToken;
 
     event TokenCreated(
-        address tokenAddress,
-        uint256 positionId,
-        address deployer,
+        address indexed tokenAddress,
+        uint256 indexed positionId,
+        address indexed deployer,
         uint256 fid,
         string name,
         string symbol,
@@ -55,52 +62,65 @@ contract Earnkit is Ownable {
         string castHash
     );
 
+    /// @notice Contract constructor
+    /// @param _locker Address of the LP locker contract
+    /// @param _uniswapV3Factory Address of UniswapV3 factory
+    /// @param _positionManager Address of NFT position manager
+    /// @param _swapRouter Address of swap router
+    /// @param _owner Address of contract owner
     constructor(
-        address locker_,
-        address uniswapV3Factory_,
-        address positionManager_,
-        address swapRouter_,
-        address owner_
-    ) Ownable(owner_) {
-        liquidityLocker = LpLocker(locker_);
-        uniswapV3Factory = IUniswapV3Factory(uniswapV3Factory_);
-        positionManager = INonfungiblePositionManager(positionManager_);
-        swapRouter = swapRouter_;
+        address _locker,
+        address _uniswapV3Factory,
+        address _positionManager,
+        address _swapRouter,
+        address _owner
+    ) Ownable(_owner) {
+        liquidityLocker = LpLocker(_locker);
+        uniswapV3Factory = IUniswapV3Factory(_uniswapV3Factory);
+        positionManager = INonfungiblePositionManager(_positionManager);
+        swapRouter = _swapRouter;
     }
 
+    /// @notice Get all tokens deployed by a specific user
+    /// @param _user Address of the user
+    /// @return Array of deployment information for user's tokens
     function getTokensDeployedByUser(
-        address user
+        address _user
     ) external view returns (DeploymentInfo[] memory) {
-        return tokensDeployedByUsers[user];
+        return tokensDeployedByUsers[_user];
     }
 
     function configurePool(
-        address newToken,
-        address pairedToken,
-        int24 tick,
-        int24 tickSpacing,
-        uint24 fee,
-        uint256 supplyPerPool,
-        address deployer
+        address _newToken,
+        address _pairedToken,
+        int24 _tick,
+        int24 _tickSpacing,
+        uint24 _fee,
+        uint256 _supplyPerPool,
+        address _deployer
     ) internal returns (uint256 positionId) {
-        if (newToken > pairedToken) revert InvalidSalt();
+        if (_newToken > _pairedToken) revert InvalidSalt();
 
-        uint160 sqrtPriceX96 = tick.getSqrtRatioAtTick();
+        uint160 sqrtPriceX96 = _tick.getSqrtRatioAtTick();
 
         // Create pool
-        address pool = uniswapV3Factory.createPool(newToken, pairedToken, fee);
+        address pool = uniswapV3Factory.createPool(
+            _newToken,
+            _pairedToken,
+            _fee
+        );
 
         // Initialize pool
         IUniswapV3Factory(pool).initialize(sqrtPriceX96);
 
         INonfungiblePositionManager.MintParams
             memory params = INonfungiblePositionManager.MintParams(
-                newToken,
-                pairedToken,
-                fee,
-                tick,
-                maxUsableTick(tickSpacing),
-                supplyPerPool,
+                _newToken,
+                _pairedToken,
+                _fee,
+                _tick,
+                maxUsableTick(_tickSpacing),
+                _supplyPerPool,
                 0,
                 0,
                 0,
@@ -117,7 +137,7 @@ contract Earnkit is Ownable {
 
         liquidityLocker.addUserRewardRecipient(
             LpLocker.UserRewardRecipient({
-                recipient: deployer,
+                recipient: _deployer,
                 lpTokenId: positionId
             })
         );
@@ -136,7 +156,7 @@ contract Earnkit is Ownable {
         PoolConfig memory _poolConfig
     ) external payable returns (EarnkitToken token, uint256 positionId) {
         if (!admins[msg.sender] && msg.sender != owner())
-            revert NotOwnerOrAdmin();
+            revert NotOwnerOrAdmin(msg.sender);
 
         if (!allowedPairedTokens[_poolConfig.pairedToken])
             revert NotAllowedPairedToken(_poolConfig.pairedToken);
@@ -182,10 +202,10 @@ contract Earnkit is Ownable {
         if (msg.value > 0) {
             uint256 amountOut = msg.value;
             // If it's not WETH, we must buy the token first...
-            if (_poolConfig.pairedToken != weth) {
+            if (_poolConfig.pairedToken != WETH) {
                 ExactInputSingleParams
                     memory swapParams = ExactInputSingleParams({
-                        tokenIn: weth, // The token we are exchanging from (ETH wrapped as WETH)
+                        tokenIn: WETH, // The token we are exchanging from (ETH wrapped as WETH)
                         tokenOut: _poolConfig.pairedToken, // The token we are exchanging to
                         fee: _poolConfig.devBuyFee, // The pool fee
                         recipient: address(this), // The recipient address
@@ -217,7 +237,7 @@ contract Earnkit is Ownable {
 
             // The call to `exactInputSingle` executes the swap.
             ISwapRouter(swapRouter).exactInputSingle{
-                value: _poolConfig.pairedToken == weth ? msg.value : 0
+                value: _poolConfig.pairedToken == WETH ? msg.value : 0
             }(swapParamsToken);
         }
 
@@ -243,36 +263,49 @@ contract Earnkit is Ownable {
         );
     }
 
-    function setAdmin(address admin, bool isAdmin) external onlyOwner {
-        admins[admin] = isAdmin;
+    /// @notice Set or remove admin privileges
+    /// @param _admin Address to modify admin status for
+    /// @param _isAdmin New admin status
+    function setAdmin(address _admin, bool _isAdmin) external onlyOwner {
+        admins[_admin] = _isAdmin;
     }
 
+    /// @notice Toggle whether a token can be used as paired token
+    /// @param _token Address of token to toggle
+    /// @param _allowed New allowed status
     function toggleAllowedPairedToken(
-        address token,
-        bool allowed
+        address _token,
+        bool _allowed
     ) external onlyOwner {
-        allowedPairedTokens[token] = allowed;
+        allowedPairedTokens[_token] = _allowed;
     }
 
-    function claimRewards(address token) external {
-        DeploymentInfo memory deploymentInfo = deploymentInfoForToken[token];
+    /// @notice Claim rewards for a specific token
+    /// @param _token Address of token to claim rewards for
+    function claimRewards(address _token) external {
+        DeploymentInfo memory deploymentInfo = deploymentInfoForToken[_token];
 
-        if (deploymentInfo.token == address(0))
-            revert TokenNotFound(deploymentInfo.token);
+        if (deploymentInfo.token == address(0)) {
+            revert TokenNotFound(_token);
+        }
 
         ILocker(deploymentInfo.locker).collectRewards(
             deploymentInfo.positionId
         );
     }
 
-    function updateLiquidityLocker(address newLocker) external onlyOwner {
-        liquidityLocker = LpLocker(newLocker);
+    /// @notice Update the liquidity locker contract address
+    /// @param _newLocker Address of new locker contract
+    function updateLiquidityLocker(address _newLocker) external onlyOwner {
+        liquidityLocker = LpLocker(_newLocker);
     }
 }
 
 /// @notice Given a tickSpacing, compute the maximum usable tick
-function maxUsableTick(int24 tickSpacing) pure returns (int24) {
+/// @param _tickSpacing The spacing between ticks
+/// @return Maximum tick that can be used
+function maxUsableTick(int24 _tickSpacing) pure returns (int24) {
     unchecked {
-        return (TickMath.MAX_TICK / tickSpacing) * tickSpacing;
+        return (TickMath.MAX_TICK / _tickSpacing) * _tickSpacing;
     }
 }

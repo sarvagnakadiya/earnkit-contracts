@@ -7,9 +7,11 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {NonFungibleContract, ILocker} from "./Interfaces/ILpLocker.sol";
 
+/// @title LpLocker
+/// @notice Contract for managing LP token positions and reward distribution
+/// @dev Handles LP token locking and reward collection from Uniswap V3 positions
 contract LpLocker is Ownable, IERC721Receiver, ILocker {
-    event Received(address indexed from, uint256 tokenId);
-
+    // Custom errors
     error ExceedsMaxBps();
     error NotAllowed(address user);
     error InvalidTokenId(uint256 tokenId);
@@ -18,35 +20,19 @@ contract LpLocker is Ownable, IERC721Receiver, ILocker {
     // Constants
     uint256 private constant MAX_BPS = 100;
 
+    // Events
+    event Received(address indexed from, uint256 indexed tokenId);
     event ClaimedRewards(
         address indexed claimer,
         address indexed token0,
         address indexed token1,
         uint256 amount0,
         uint256 amount1,
-        uint256 totalAmount1,
-        uint256 totalAmount0
+        uint256 totalAmount0,
+        uint256 totalAmount1
     );
 
-    IERC721 private SafeERC721;
-    address private immutable e721Token;
-    address public immutable positionManager;
-    uint256 public _earnkitTeamReward;
-    address public _earnkitTeamRecipient;
-    address public _factory;
-    uint256 public _aiAgentReward;
-    address public _aiAgentRecipient;
-
-    // Modifiers
-    modifier validateBps(uint256 bps) {
-        if (bps > MAX_BPS) revert ExceedsMaxBps();
-        _;
-    }
-
-    // modifier notZeroAddress(address addr) {
-    //     if (addr == address(0)) revert ZeroAddress();
-    //     _;
-    // }
+    // Structs
     struct UserRewardRecipient {
         address recipient;
         uint256 lpTokenId;
@@ -58,95 +44,136 @@ contract LpLocker is Ownable, IERC721Receiver, ILocker {
         uint256 lpTokenId;
     }
 
-    mapping(uint256 => UserRewardRecipient) public _userRewardRecipientForToken;
+    // Immutable state variables
+    address public immutable positionManager;
+
+    // Storage variables
+    IERC721 private safeERC721;
+    address private immutable e721Token;
+    uint256 private earnkitTeamReward;
+    address private earnkitTeamRecipient;
+    address public factory;
+    uint256 private aiAgentReward;
+    address private aiAgentRecipient;
+
+    // Mappings
+    mapping(uint256 => UserRewardRecipient) public userRewardRecipientForToken;
     mapping(uint256 => TeamRewardRecipient)
-        public _teamOverrideRewardRecipientForToken;
+        public teamOverrideRewardRecipientForToken;
+    mapping(address => uint256[]) public userTokenIds;
 
-    mapping(address => uint256[]) public _userTokenIds;
-
-    constructor(
-        address earnkitTeamRecipient, // earnkit team address to receive portion of the fees
-        uint256 earnkitTeamReward, // earnkit team reward percentage
-        address _positionManager,
-        address aiAgentRecipient, // AI agent address to receive portion of the fees
-        uint256 aiAgentReward // AI agent reward percentage (10%)
-    ) Ownable(earnkitTeamRecipient) {
-        _earnkitTeamReward = earnkitTeamReward;
-        _earnkitTeamRecipient = earnkitTeamRecipient;
-        positionManager = _positionManager;
-        _aiAgentRecipient = aiAgentRecipient;
-        _aiAgentReward = aiAgentReward;
+    // Modifiers
+    modifier validateBps(uint256 _bps) {
+        if (_bps > MAX_BPS) revert ExceedsMaxBps();
+        _;
     }
 
+    /// @notice Contract constructor
+    /// @param _earnkitTeamRecipient Address to receive team portion of fees
+    /// @param _earnkitTeamRewardBps Team reward percentage
+    /// @param _positionManagerAddr Address of Uniswap V3 position manager
+    /// @param _aiAgentRecipient Address to receive AI agent portion of fees
+    /// @param _aiAgentRewardBps AI agent reward percentage
+    constructor(
+        address _earnkitTeamRecipient,
+        uint256 _earnkitTeamRewardBps,
+        address _positionManagerAddr,
+        address _aiAgentRecipient,
+        uint256 _aiAgentRewardBps
+    ) Ownable(_earnkitTeamRecipient) {
+        earnkitTeamReward = _earnkitTeamRewardBps;
+        earnkitTeamRecipient = _earnkitTeamRecipient;
+        positionManager = _positionManagerAddr;
+        aiAgentRecipient = _aiAgentRecipient;
+        aiAgentReward = _aiAgentRewardBps;
+    }
+
+    /// @notice Set override team rewards for a specific token
+    /// @param _tokenId Token ID to set override for
+    /// @param _newTeamRecipient New team recipient address
+    /// @param _newTeamReward New team reward percentage
     function setOverrideTeamRewardsForToken(
-        uint256 tokenId,
-        address newTeamRecipient,
-        uint256 newTeamReward
-    ) public onlyOwner validateBps(newTeamReward) {
-        if (newTeamReward + _aiAgentReward > MAX_BPS) {
+        uint256 _tokenId,
+        address _newTeamRecipient,
+        uint256 _newTeamReward
+    ) public onlyOwner validateBps(_newTeamReward) {
+        if (_newTeamReward + aiAgentReward > MAX_BPS) {
             revert InvalidRewardPercentage();
         }
-        _teamOverrideRewardRecipientForToken[tokenId] = TeamRewardRecipient({
-            recipient: newTeamRecipient,
-            reward: newTeamReward,
-            lpTokenId: tokenId
+        teamOverrideRewardRecipientForToken[_tokenId] = TeamRewardRecipient({
+            recipient: _newTeamRecipient,
+            reward: _newTeamReward,
+            lpTokenId: _tokenId
         });
     }
 
-    function updateEarnkitFactory(address newFactory) public onlyOwner {
-        _factory = newFactory;
+    /// @notice Update the factory contract address
+    /// @param _newFactory New factory contract address
+    function updateEarnkitFactory(address _newFactory) public onlyOwner {
+        factory = _newFactory;
     }
 
-    // Update the earnkit team reward
+    /// @notice Update the team reward percentage
+    /// @param _newReward New reward percentage
     function updateEarnkitTeamReward(
-        uint256 newReward
-    ) public onlyOwner validateBps(newReward) {
-        if (newReward + _aiAgentReward > MAX_BPS) {
+        uint256 _newReward
+    ) public onlyOwner validateBps(_newReward) {
+        if (_newReward + aiAgentReward > MAX_BPS) {
             revert InvalidRewardPercentage();
         }
-        _earnkitTeamReward = newReward;
+        earnkitTeamReward = _newReward;
     }
 
-    // Update the earnkit team recipient
-    function updateEarnkitTeamRecipient(address newRecipient) public onlyOwner {
-        _earnkitTeamRecipient = newRecipient;
+    /// @notice Update the team recipient address
+    /// @param _newRecipient New recipient address
+    function updateEarnkitTeamRecipient(
+        address _newRecipient
+    ) public onlyOwner {
+        earnkitTeamRecipient = _newRecipient;
     }
 
-    // Update the AI agent recipient
-    function updateAiAgentRecipient(address newRecipient) public onlyOwner {
-        _aiAgentRecipient = newRecipient;
+    /// @notice Update the AI agent recipient address
+    /// @param _newRecipient New recipient address
+    function updateAiAgentRecipient(address _newRecipient) public onlyOwner {
+        aiAgentRecipient = _newRecipient;
     }
 
-    // Update the AI agent reward
+    /// @notice Update the AI agent reward percentage
+    /// @param _newReward New reward percentage
     function updateAiAgentReward(
-        uint256 newReward
-    ) public onlyOwner validateBps(newReward) {
-        if (newReward + _earnkitTeamReward > MAX_BPS) {
+        uint256 _newReward
+    ) public onlyOwner validateBps(_newReward) {
+        if (_newReward + earnkitTeamReward > MAX_BPS) {
             revert InvalidRewardPercentage();
         }
-        _aiAgentReward = newReward;
+        aiAgentReward = _newReward;
     }
 
-    // Withdraw ETH from the contract
-    function withdrawETH(address recipient) public onlyOwner {
-        payable(recipient).transfer(address(this).balance);
+    /// @notice Withdraw ETH from the contract
+    /// @param _recipient Address to receive the ETH
+    function withdrawETH(address _recipient) public onlyOwner {
+        payable(_recipient).transfer(address(this).balance);
     }
 
-    // Withdraw ERC20 tokens from the contract
-    function withdrawERC20(address _token, address recipient) public onlyOwner {
-        IERC20 IToken = IERC20(_token);
-        IToken.transfer(recipient, IToken.balanceOf(address(this)));
+    /// @notice Withdraw ERC20 tokens from the contract
+    /// @param _token Token address to withdraw
+    /// @param _recipient Address to receive the tokens
+    function withdrawERC20(
+        address _token,
+        address _recipient
+    ) public onlyOwner {
+        IERC20 token = IERC20(_token);
+        token.transfer(_recipient, token.balanceOf(address(this)));
     }
 
-    // Use collect rewards to collect the rewards
+    /// @notice Collect rewards from a Uniswap V3 position
+    /// @param _tokenId Token ID of the position
     function collectRewards(uint256 _tokenId) public override {
-        // Get the _userRewardRecipients for the tokenId
         UserRewardRecipient
-            memory userRewardRecipient = _userRewardRecipientForToken[_tokenId];
+            memory userRewardRecipient = userRewardRecipientForToken[_tokenId];
+        address recipient = userRewardRecipient.recipient;
 
-        address _recipient = userRewardRecipient.recipient;
-
-        if (_recipient == address(0)) revert InvalidTokenId(_tokenId);
+        if (recipient == address(0)) revert InvalidTokenId(_tokenId);
 
         NonFungibleContract nonfungiblePositionManager = NonFungibleContract(
             positionManager
@@ -179,14 +206,14 @@ contract LpLocker is Ownable, IERC721Receiver, ILocker {
         IERC20 rewardToken0 = IERC20(token0);
         IERC20 rewardToken1 = IERC20(token1);
 
-        // gas efficiency
-        address teamRecipient = _earnkitTeamRecipient;
-        uint256 teamReward = _earnkitTeamReward;
-        address aiRecipient = _aiAgentRecipient;
-        uint256 aiReward = _aiAgentReward;
+        // Cache variables for gas efficiency
+        address teamRecipient = earnkitTeamRecipient;
+        uint256 teamReward = earnkitTeamReward;
+        address aiRecipient = aiAgentRecipient;
+        uint256 aiReward = aiAgentReward;
 
         TeamRewardRecipient
-            memory overrideRewardRecipient = _teamOverrideRewardRecipientForToken[
+            memory overrideRewardRecipient = teamOverrideRewardRecipientForToken[
                 _tokenId
             ];
 
@@ -206,8 +233,8 @@ contract LpLocker is Ownable, IERC721Receiver, ILocker {
         uint256 recipientReward1 = amount1 - protocolReward1 - aiAgentReward1;
 
         // Transfer rewards to each party
-        rewardToken0.transfer(_recipient, recipientReward0);
-        rewardToken1.transfer(_recipient, recipientReward1);
+        rewardToken0.transfer(recipient, recipientReward0);
+        rewardToken1.transfer(recipient, recipientReward1);
 
         rewardToken0.transfer(teamRecipient, protocolReward0);
         rewardToken1.transfer(teamRecipient, protocolReward1);
@@ -216,7 +243,7 @@ contract LpLocker is Ownable, IERC721Receiver, ILocker {
         rewardToken1.transfer(aiRecipient, aiAgentReward1);
 
         emit ClaimedRewards(
-            _recipient,
+            recipient,
             token0,
             token1,
             recipientReward0,
@@ -226,64 +253,65 @@ contract LpLocker is Ownable, IERC721Receiver, ILocker {
         );
     }
 
+    /// @notice Get all LP token IDs for a user
+    /// @param _user Address of the user
+    /// @return Array of token IDs
     function getLpTokenIdsForUser(
-        address user
+        address _user
     ) public view returns (uint256[] memory) {
-        return _userTokenIds[user];
+        return userTokenIds[_user];
     }
 
+    /// @notice Add a new user reward recipient
+    /// @param _recipient Recipient information to add
     function addUserRewardRecipient(
-        UserRewardRecipient memory recipient
+        UserRewardRecipient memory _recipient
     ) public {
-        if (msg.sender != owner() && msg.sender != _factory)
+        if (msg.sender != owner() && msg.sender != factory)
             revert NotAllowed(msg.sender);
-        _userRewardRecipientForToken[recipient.lpTokenId] = recipient;
-        _userTokenIds[recipient.recipient].push(recipient.lpTokenId);
+        userRewardRecipientForToken[_recipient.lpTokenId] = _recipient;
+        userTokenIds[_recipient.recipient].push(_recipient.lpTokenId);
     }
 
+    /// @notice Replace an existing user reward recipient
+    /// @param _recipient New recipient information
     function replaceUserRewardRecipient(
-        UserRewardRecipient memory recipient
+        UserRewardRecipient memory _recipient
     ) public {
-        // Get the old recipient
-        UserRewardRecipient memory oldRecipient = _userRewardRecipientForToken[
-            recipient.lpTokenId
+        UserRewardRecipient memory oldRecipient = userRewardRecipientForToken[
+            _recipient.lpTokenId
         ];
 
-        // Only owner or recipient can replace the reward recipient
         if (msg.sender != owner() && msg.sender != oldRecipient.recipient) {
             revert NotAllowed(msg.sender);
         }
 
-        // Remove the old recipient
-        delete _userRewardRecipientForToken[recipient.lpTokenId];
+        delete userRewardRecipientForToken[_recipient.lpTokenId];
 
-        // Remove the old tokenId from _userTokenIds
-        uint256[] memory tokenIds = _userTokenIds[recipient.recipient];
+        uint256[] memory tokenIds = userTokenIds[_recipient.recipient];
         for (uint256 i = 0; i < tokenIds.length; i++) {
-            if (tokenIds[i] == recipient.lpTokenId) {
-                delete _userTokenIds[recipient.recipient][i];
+            if (tokenIds[i] == _recipient.lpTokenId) {
+                delete userTokenIds[_recipient.recipient][i];
             }
         }
 
-        // Add the new recipient
-        _userRewardRecipientForToken[recipient.lpTokenId] = recipient;
-
-        // Add the new tokenId to _userTokenIds
-        _userTokenIds[recipient.recipient].push(recipient.lpTokenId);
+        userRewardRecipientForToken[_recipient.lpTokenId] = _recipient;
+        userTokenIds[_recipient.recipient].push(_recipient.lpTokenId);
     }
 
+    /// @notice Handle receipt of ERC721 token
+    /// @inheritdoc IERC721Receiver
     function onERC721Received(
         address,
-        address from,
-        uint256 id,
+        address _from,
+        uint256 _id,
         bytes calldata
     ) external override returns (bytes4) {
-        // Only earnkit team EOA can send the NFT here
-        if (from != _factory) {
-            revert NotAllowed(from);
+        if (_from != factory) {
+            revert NotAllowed(_from);
         }
 
-        emit Received(from, id);
+        emit Received(_from, _id);
         return IERC721Receiver.onERC721Received.selector;
     }
 }
