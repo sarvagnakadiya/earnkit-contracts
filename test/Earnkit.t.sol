@@ -80,7 +80,8 @@ contract EarnkitTest is Test {
             UNISWAP_V3_FACTORY,
             POSITION_MANAGER,
             SWAP_ROUTER,
-            owner
+            owner,
+            address(campaigns)
         );
         lpLocker.updateEarnkitFactory(address(earnkit));
 
@@ -273,7 +274,6 @@ contract EarnkitTest is Test {
             "", // image
             "", // castHash
             poolConfig,
-            address(campaigns),
             campaignInfos,
             10
         );
@@ -405,7 +405,6 @@ contract EarnkitTest is Test {
             "",
             "",
             poolConfig,
-            address(campaigns),
             campaignInfos,
             10
         );
@@ -449,7 +448,6 @@ contract EarnkitTest is Test {
             "",
             "",
             poolConfig,
-            address(campaigns),
             campaignInfos,
             10
         );

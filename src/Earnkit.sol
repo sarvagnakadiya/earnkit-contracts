@@ -35,6 +35,7 @@ contract Earnkit is Ownable {
     LpLocker public liquidityLocker;
     mapping(address => bool) public admins;
     mapping(address => bool) public allowedPairedTokens;
+    address public campaignContract;
 
     struct PoolConfig {
         address pairedToken;
@@ -75,17 +76,20 @@ contract Earnkit is Ownable {
     /// @param _positionManager Address of NFT position manager
     /// @param _swapRouter Address of swap router
     /// @param _owner Address of contract owner
+    /// @param _campaignContract Address of campaign contract
     constructor(
         address _locker,
         address _uniswapV3Factory,
         address _positionManager,
         address _swapRouter,
-        address _owner
+        address _owner,
+        address _campaignContract
     ) Ownable(_owner) {
         liquidityLocker = LpLocker(_locker);
         uniswapV3Factory = IUniswapV3Factory(_uniswapV3Factory);
         positionManager = INonfungiblePositionManager(_positionManager);
         swapRouter = _swapRouter;
+        campaignContract = _campaignContract;
     }
 
     /// @notice Get all tokens deployed by a specific user
@@ -274,7 +278,6 @@ contract Earnkit is Ownable {
         string memory _image,
         string memory _castHash,
         PoolConfig memory _poolConfig,
-        address campaignContract,
         CampaignInfo[] calldata campaigns,
         uint256 campaignPercentage
     ) external payable returns (EarnkitToken token, uint256 positionId) {
@@ -313,7 +316,6 @@ contract Earnkit is Ownable {
         // Create campaigns
         for (uint256 i = 0; i < campaigns.length; i++) {
             CampaignInfo memory campaign = campaigns[i];
-            // Call createCampaign on the campaign contract
             ICampaigns(campaignContract).createCampaign(
                 _deployer,
                 address(token),
@@ -434,6 +436,14 @@ contract Earnkit is Ownable {
     /// @param _newLocker Address of new locker contract
     function updateLiquidityLocker(address _newLocker) external onlyOwner {
         liquidityLocker = LpLocker(_newLocker);
+    }
+
+    /// @notice Update the campaign contract address
+    /// @param _newCampaignContract Address of new campaign contract
+    function updateCampaignContract(
+        address _newCampaignContract
+    ) external onlyOwner {
+        campaignContract = _newCampaignContract;
     }
 }
 

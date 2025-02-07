@@ -1,13 +1,35 @@
+# test
+```shell
+forge test -vvvv
+```
+
 # deploy campaing
 ```shell
 chmod +x script/deploy-campaign.sh
 ./script/deploy-campaign.sh
 ```
+take the deployed address of campaign contract and set it in .env as CAMPAIGN_CONTRACT_ADDRESS
+then deploy earnkit by running the following command
 
-# test
+# deploy earnkit & LpLocker
 ```shell
-forge test
+chmod +x script/deploy.sh
+./script/deploy.sh
 ```
+
+# Deploy a token with campaign
+```shell
+chmod +x script/deploy-token-with-campaign.sh
+./script/deploy-token-with-campaign.sh
+```
+
+
+Deployed addresses
+- campaign contract: [0x61ffA02c609078512901508ceC6D1E54D88dF0C1](https://sepolia.basescan.org/address/0x61ffA02c609078512901508ceC6D1E54D88dF0C1)
+- ProtocolRewards: [0xfD828F95a9060655b4B7894050Ec32C406eb1451](https://sepolia.basescan.org/address/0xfD828F95a9060655b4B7894050Ec32C406eb1451)
+- earnkit: [0xdAa5AF55de378ff182fA1dE3923A475E0529608F](https://sepolia.basescan.org/address/0xdaa5af55de378ff182fa1de3923a475e0529608f)
+- LpLocker: [0xd638626b95d4Fe5cd0eC8D580485029D422333Ff](https://sepolia.basescan.org/address/0xd638626b95d4Fe5cd0eC8D580485029D422333Ff)
+
 
 ## Foundry
 
