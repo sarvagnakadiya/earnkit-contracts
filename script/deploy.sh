@@ -11,11 +11,11 @@ if [ -z "$PRIVATE_KEY" ] || [ -z "$OWNER_ADDRESS" ] || [ -z "$TEAM_RECIPIENT_ADD
 fi
 
 # Run the deployment script
-forge script script/Deploy.s.sol:DeployAll \
+forge script script/Deploy.s.sol \
     --rpc-url ${RPC_URL} \
     --verify \
     -vv \
-    --via-ir
+    --broadcast
 
 # Check if deployment was successful
 if [ $? -eq 0 ]; then

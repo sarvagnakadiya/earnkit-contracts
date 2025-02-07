@@ -27,7 +27,7 @@ contract DeployEarnkit is Script {
         address teamRecipient = vm.envAddress("TEAM_RECIPIENT_ADDRESS");
         address aiAgentRecipient = vm.envAddress("AI_AGENT_RECIPIENT_ADDRESS");
         uint256 aiAgentReward = vm.envUint("AI_AGENT_REWARD_PERCENTAGE");
-
+        address admin = vm.envAddress("ADMIN_ADDRESS");
         vm.startBroadcast(deployerPrivateKey);
 
         // Deploy LpLocker first
@@ -47,6 +47,8 @@ contract DeployEarnkit is Script {
             SWAP_ROUTER,
             owner
         );
+
+        earnkit.setAdmin(admin, true);
 
         // Update the factory address in LpLocker
         locker.updateEarnkitFactory(address(earnkit));
