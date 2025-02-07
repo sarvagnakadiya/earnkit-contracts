@@ -9,6 +9,15 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {INonfungiblePositionManager, IUniswapV3Factory, ExactInputSingleParams, ISwapRouter} from "./Interfaces/IEarnkit.sol";
 
+interface ICampaigns {
+    function createCampaign(
+        address _tokenAddress,
+        uint256 _maxClaims,
+        uint256 _amountPerClaim,
+        uint256 _maxSponsoredClaims
+    ) external payable returns (uint256);
+}
+
 /// @title Earnkit
 /// @notice Main contract for deploying and managing Earnkit tokens and liquidity pools
 /// @dev Handles token deployment, pool configuration, and reward distribution
@@ -45,6 +54,12 @@ contract Earnkit is Ownable {
         address token;
         uint256 positionId;
         address locker;
+    }
+
+    struct CampaignInfo {
+        uint256 maxClaims;
+        uint256 amountPerClaim;
+        uint256 maxSponsoredClaims;
     }
 
     mapping(address => DeploymentInfo[]) public tokensDeployedByUsers;
@@ -176,17 +191,10 @@ contract Earnkit is Ownable {
             _castHash
         );
 
-        // Calculate 10% of total supply for deployer
-        uint256 deployerAmount = (_supply * 10) / 100;
+        // Use entire supply for liquidity
+        uint256 liquidityAmount = _supply;
 
-        uint256 liquidityAmount = _supply - deployerAmount;
-
-        // Transfer 10% to deployer
-        // TODO: approve to campaign contract directly instead
-        //       currently, we are transferring to the deployer first
-        token.transfer(_deployer, deployerAmount);
-
-        // Approve remaining 90% for position manager
+        // Approve entire amount for position manager
         token.approve(address(positionManager), liquidityAmount);
 
         positionId = configurePool(
@@ -236,6 +244,141 @@ contract Earnkit is Ownable {
                 });
 
             // The call to `exactInputSingle` executes the swap.
+            ISwapRouter(swapRouter).exactInputSingle{
+                value: _poolConfig.pairedToken == WETH ? msg.value : 0
+            }(swapParamsToken);
+        }
+
+        DeploymentInfo memory deploymentInfo = DeploymentInfo({
+            token: address(token),
+            positionId: positionId,
+            locker: address(liquidityLocker)
+        });
+
+        deploymentInfoForToken[address(token)] = deploymentInfo;
+        tokensDeployedByUsers[_deployer].push(deploymentInfo);
+
+        emit TokenCreated(
+            address(token),
+            positionId,
+            _deployer,
+            _fid,
+            _name,
+            _symbol,
+            _supply,
+            address(liquidityLocker),
+            _castHash
+        );
+    }
+
+    function deployTokenWithCampaigns(
+        string calldata _name,
+        string calldata _symbol,
+        uint256 _supply,
+        uint24 _fee,
+        bytes32 _salt,
+        address _deployer,
+        uint256 _fid,
+        string memory _image,
+        string memory _castHash,
+        PoolConfig memory _poolConfig,
+        address campaignContract,
+        CampaignInfo[] calldata campaigns,
+        uint256 campaignPercentage
+    ) external payable returns (EarnkitToken token, uint256 positionId) {
+        require(
+            campaignPercentage <= 100,
+            "Campaign percentage must be less than or equal to 100"
+        );
+        if (!admins[msg.sender] && msg.sender != owner())
+            revert NotOwnerOrAdmin(msg.sender);
+
+        if (!allowedPairedTokens[_poolConfig.pairedToken])
+            revert NotAllowedPairedToken(_poolConfig.pairedToken);
+
+        int24 tickSpacing = uniswapV3Factory.feeAmountTickSpacing(_fee);
+        if (tickSpacing == 0 || _poolConfig.tick % tickSpacing != 0) {
+            revert InvalidTick(_poolConfig.tick, tickSpacing);
+        }
+
+        token = new EarnkitToken{salt: keccak256(abi.encode(_deployer, _salt))}(
+            _name,
+            _symbol,
+            _supply,
+            _deployer,
+            _fid,
+            _image,
+            _castHash
+        );
+
+        // Calculate percentage of total supply for campaigns
+        uint256 campaignAmount = (_supply * campaignPercentage) / 100;
+        uint256 liquidityAmount = _supply - campaignAmount;
+
+        // Approve campaign contract to spend tokens for campaigns
+        token.approve(campaignContract, campaignAmount);
+
+        // Create campaigns
+        for (uint256 i = 0; i < campaigns.length; i++) {
+            CampaignInfo memory campaign = campaigns[i];
+            // Call createCampaign on the campaign contract
+            ICampaigns(campaignContract).createCampaign(
+                address(token),
+                campaign.maxClaims,
+                campaign.amountPerClaim,
+                campaign.maxSponsoredClaims
+            );
+        }
+
+        // Approve remaining 90% for position manager
+        token.approve(address(positionManager), liquidityAmount);
+
+        positionId = configurePool(
+            address(token),
+            _poolConfig.pairedToken,
+            _poolConfig.tick,
+            tickSpacing,
+            _fee,
+            liquidityAmount,
+            _deployer
+        );
+
+        // Handle ETH swaps (same as in deployToken)
+        if (msg.value > 0) {
+            uint256 amountOut = msg.value;
+            if (_poolConfig.pairedToken != WETH) {
+                ExactInputSingleParams
+                    memory swapParams = ExactInputSingleParams({
+                        tokenIn: WETH,
+                        tokenOut: _poolConfig.pairedToken,
+                        fee: _poolConfig.devBuyFee,
+                        recipient: address(this),
+                        amountIn: msg.value,
+                        amountOutMinimum: 0,
+                        sqrtPriceLimitX96: 0
+                    });
+
+                amountOut = ISwapRouter(swapRouter).exactInputSingle{
+                    value: msg.value
+                }(swapParams);
+
+                IERC20(_poolConfig.pairedToken).approve(
+                    address(swapRouter),
+                    0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+                );
+            }
+
+            ExactInputSingleParams
+                memory swapParamsToken = ExactInputSingleParams({
+                    tokenIn: _poolConfig.pairedToken,
+                    tokenOut: address(token),
+                    fee: _fee,
+                    recipient: _deployer,
+                    amountIn: amountOut,
+                    amountOutMinimum: 0,
+                    sqrtPriceLimitX96: 0
+                });
+
             ISwapRouter(swapRouter).exactInputSingle{
                 value: _poolConfig.pairedToken == WETH ? msg.value : 0
             }(swapParamsToken);
