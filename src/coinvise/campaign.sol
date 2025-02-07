@@ -169,29 +169,34 @@ contract Campaigns is Ownable, ReentrancyGuard, EIP712, RewardsSplitter {
     /// @notice Create a new campaign
     /// @dev Stores a new `Campaign` to `campaigns[campaignManager][campaignId]`.
     ///      Transfers the total required tokens from creator to contract.
-    ///      Reverts if `_tokenAddress` is zero.
+    ///      Reverts if `_tokenAddress` or `_campaignManager` is zero.
     ///      Reverts if `_maxClaims` | `_amountPerClaim` is not greater than zero.
     ///      Emits `CampaignCreated`
+    /// @param _campaignManager address of the campaign manager
     /// @param _tokenAddress address of token used in campaign
     /// @param _maxClaims max no. of claims possible for the campaign
     /// @param _amountPerClaim amount of tokens received per claim
     /// @param _maxSponsoredClaims no. of sponsored claims
     function createCampaign(
+        address _campaignManager,
         address _tokenAddress,
         uint256 _maxClaims,
         uint256 _amountPerClaim,
         uint256 _maxSponsoredClaims
     ) external payable nonReentrant returns (uint256 _campaignId) {
         // Revert if InvalidAddress / InvalidCount
-        if (_tokenAddress == address(0)) revert InvalidAddress();
+        if (_tokenAddress == address(0) || _campaignManager == address(0))
+            revert InvalidAddress();
         if (_maxClaims == 0 || _amountPerClaim == 0) revert InvalidCount();
         if (_maxSponsoredClaims > _maxClaims) revert ExceedsMaxClaims();
 
         // Create & store new Campaign
         /// @dev practically hard for nextCampaignId to overflow type(uint256).max
         unchecked {
-            _campaignId = nextCampaignId[msg.sender]++;
-            Campaign storage _campaign = campaigns[msg.sender][_campaignId];
+            _campaignId = nextCampaignId[_campaignManager]++;
+            Campaign storage _campaign = campaigns[_campaignManager][
+                _campaignId
+            ];
             _campaign.tokenAddress = _tokenAddress;
             _campaign.maxClaims = _maxClaims;
             _campaign.noOfClaims = 0;
@@ -222,13 +227,12 @@ contract Campaigns is Ownable, ReentrancyGuard, EIP712, RewardsSplitter {
         }
 
         // Emit event
-        /* emit CampaignCreated(msg.sender, _campaignId); */
         assembly {
             log3(
                 0x00,
                 0x00, // no data
                 0xfc5b9d1c2c1134048e1792e3ae27d4eee04f460d341711c7088000d2ca218621, // CampaignCreated(address,uint256)
-                caller(), // campaignManager
+                _campaignManager, // campaignManager (changed from caller())
                 _campaignId // campaignId
             )
         }

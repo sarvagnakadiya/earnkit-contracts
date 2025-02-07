@@ -90,6 +90,7 @@ contract CampaignTest is Test {
 
         // Create campaign with proper value for sponsored claims
         uint256 campaignId = campaigns.createCampaign{value: 0}(
+            campaignManager,
             address(token),
             maxClaims,
             amountPerClaim,

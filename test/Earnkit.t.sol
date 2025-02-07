@@ -269,86 +269,89 @@ contract EarnkitTest is Test {
         vm.stopPrank();
     }
 
-    // function test_deployTokenWithCampaigns_RevertIfNotAdmin() public {
-    //     Earnkit.PoolConfig memory poolConfig = Earnkit.PoolConfig({
-    //         pairedToken: WETH,
-    //         devBuyFee: FEE,
-    //         tick: TICK
-    //     });
+    // revert tests
+    function test_deployTokenWithCampaigns_RevertIfNotAdmin() public {
+        Earnkit.PoolConfig memory poolConfig = Earnkit.PoolConfig({
+            pairedToken: WETH,
+            devBuyFee: FEE,
+            tick: TICK
+        });
 
-    //     Earnkit.CampaignInfo[]
-    //         memory campaignInfos = new Earnkit.CampaignInfo[](1);
-    //     campaignInfos[0] = Earnkit.CampaignInfo({
-    //         maxClaims: 100,
-    //         amountPerClaim: 5000 * 1e18,
-    //         maxSponsoredClaims: 10
-    //     });
+        Earnkit.CampaignInfo[]
+            memory campaignInfos = new Earnkit.CampaignInfo[](1);
+        campaignInfos[0] = Earnkit.CampaignInfo({
+            maxClaims: 100,
+            amountPerClaim: 5000 * 1e18,
+            maxSponsoredClaims: 10
+        });
 
-    //     vm.expectRevert(
-    //         abi.encodeWithSelector(
-    //             Earnkit.NotOwnerOrAdmin.selector,
-    //             address(this)
-    //         )
-    //     );
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Earnkit.NotOwnerOrAdmin.selector,
+                address(this)
+            )
+        );
 
-    //     earnkit.deployTokenWithCampaigns(
-    //         "Test Token",
-    //         "TEST",
-    //         INITIAL_SUPPLY,
-    //         FEE,
-    //         bytes32(0),
-    //         deployer,
-    //         1,
-    //         "",
-    //         "",
-    //         poolConfig,
-    //         address(campaigns),
-    //         campaignInfos
-    //     );
-    // }
+        earnkit.deployTokenWithCampaigns(
+            "Test Token",
+            "TEST",
+            INITIAL_SUPPLY,
+            FEE,
+            bytes32(0),
+            deployer,
+            1,
+            "",
+            "",
+            poolConfig,
+            address(campaigns),
+            campaignInfos,
+            10
+        );
+    }
 
-    // function test_deployTokenWithCampaigns_RevertIfInvalidPairedToken() public {
-    //     vm.startPrank(admin);
+    function test_deployTokenWithCampaigns_RevertIfInvalidPairedToken() public {
+        vm.startPrank(admin);
 
-    //     // Create a random token that's not allowed
-    //     address randomToken = makeAddr("randomToken");
+        // Create a random token that's not allowed
+        address randomToken = makeAddr("randomToken");
 
-    //     Earnkit.PoolConfig memory poolConfig = Earnkit.PoolConfig({
-    //         pairedToken: randomToken,
-    //         devBuyFee: 3000,
-    //         tick: TICK
-    //     });
+        Earnkit.PoolConfig memory poolConfig = Earnkit.PoolConfig({
+            pairedToken: randomToken,
+            devBuyFee: 3000,
+            tick: TICK
+        });
 
-    //     Earnkit.CampaignInfo[]
-    //         memory campaignInfos = new Earnkit.CampaignInfo[](1);
-    //     campaignInfos[0] = Earnkit.CampaignInfo({
-    //         maxClaims: 100,
-    //         amountPerClaim: 5000 * 1e18,
-    //         maxSponsoredClaims: 10
-    //     });
+        Earnkit.CampaignInfo[]
+            memory campaignInfos = new Earnkit.CampaignInfo[](1);
+        campaignInfos[0] = Earnkit.CampaignInfo({
+            maxClaims: 100,
+            amountPerClaim: 5000 * 1e18,
+            maxSponsoredClaims: 10
+        });
 
-    //     vm.expectRevert(
-    //         abi.encodeWithSelector(
-    //             Earnkit.NotAllowedPairedToken.selector,
-    //             randomToken
-    //         )
-    //     );
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Earnkit.NotAllowedPairedToken.selector,
+                randomToken
+            )
+        );
 
-    //     earnkit.deployTokenWithCampaigns(
-    //         "Test Token",
-    //         "TEST",
-    //         INITIAL_SUPPLY,
-    //         FEE,
-    //         bytes32(0),
-    //         deployer,
-    //         1,
-    //         "",
-    //         "",
-    //         poolConfig,
-    //         address(campaigns),
-    //         campaignInfos
-    //     );
+        earnkit.deployTokenWithCampaigns(
+            "Test Token",
+            "TEST",
+            INITIAL_SUPPLY,
+            FEE,
+            bytes32(0),
+            deployer,
+            1,
+            "",
+            "",
+            poolConfig,
+            address(campaigns),
+            campaignInfos,
+            10
+        );
 
-    //     vm.stopPrank();
-    // }
+        vm.stopPrank();
+    }
 }

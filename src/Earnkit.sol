@@ -4,19 +4,11 @@ pragma solidity ^0.8.25;
 import {LpLocker} from "./LpLocker.sol";
 import {EarnkitToken} from "./Earnkit_token.sol";
 import {ILocker} from "./Interfaces/ILpLocker.sol";
+import {ICampaigns} from "./Interfaces/ICampaign.sol";
 import {TickMath} from "../src/libraries/TickMath.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {INonfungiblePositionManager, IUniswapV3Factory, ExactInputSingleParams, ISwapRouter} from "./Interfaces/IEarnkit.sol";
-
-interface ICampaigns {
-    function createCampaign(
-        address _tokenAddress,
-        uint256 _maxClaims,
-        uint256 _amountPerClaim,
-        uint256 _maxSponsoredClaims
-    ) external payable returns (uint256);
-}
 
 /// @title Earnkit
 /// @notice Main contract for deploying and managing Earnkit tokens and liquidity pools
@@ -323,6 +315,7 @@ contract Earnkit is Ownable {
             CampaignInfo memory campaign = campaigns[i];
             // Call createCampaign on the campaign contract
             ICampaigns(campaignContract).createCampaign(
+                _deployer,
                 address(token),
                 campaign.maxClaims,
                 campaign.amountPerClaim,
