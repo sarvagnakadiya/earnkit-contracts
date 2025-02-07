@@ -36,6 +36,10 @@ contract EarnkitTest is Test {
     address teamRecipient = vm.envAddress("TEAM_RECIPIENT_ADDRESS");
     address aiAgentRecipient = vm.envAddress("AI_AGENT_RECIPIENT_ADDRESS");
     uint256 aiAgentReward = vm.envUint("AI_AGENT_REWARD_PERCENTAGE");
+    address public TREASURY = vm.envAddress("TREASURY_ADDRESS");
+    address public TRUSTED_ADDRESS = vm.envAddress("TRUSTED_ADDRESS");
+    uint256 public TRUSTED_SIGNER_PRIVATE_KEY =
+        vm.envUint("TRUSTED_SIGNER_PRIVATE_KEY");
 
     function setUp() public {
         // Fork Base mainnet
@@ -64,10 +68,12 @@ contract EarnkitTest is Test {
         console.log("protocolRewards address:", address(protocolRewards));
 
         campaigns = new Campaigns(
-            owner, // trustedAddress
+            TRUSTED_ADDRESS, // trustedAddress
             0.00015 ether, // claimFee
             address(protocolRewards)
         );
+
+        campaigns.setTreasury(TREASURY);
 
         earnkit = new Earnkit(
             address(lpLocker),
@@ -189,6 +195,23 @@ contract EarnkitTest is Test {
         vm.stopPrank();
     }
 
+    function _calculateDomainSeparator(
+        address campaignsAddress
+    ) internal view returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    keccak256(
+                        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                    ),
+                    keccak256(bytes("Campaigns")),
+                    keccak256(bytes("1.0")),
+                    block.chainid,
+                    campaignsAddress
+                )
+            );
+    }
+
     function test_deployTokenWithCampaigns() public {
         vm.startPrank(admin);
 
@@ -266,7 +289,86 @@ contract EarnkitTest is Test {
         // Verify campaigns received exactly 10% of total supply
         assertEq(token.balanceOf(address(campaigns)), totalCampaignTokens);
 
+        // Stop admin prank before starting claim tests
         vm.stopPrank();
+
+        // Setup claimer
+        address claimer = makeAddr("claimer");
+        vm.deal(claimer, 1 ether); // Give claimer some ETH for claim fees
+
+        // Generate signature for claim
+        bytes32 domainSeparator = _calculateDomainSeparator(address(campaigns));
+        bytes32 _CLAIM_TYPEHASH = keccak256(
+            "Claim(address campaignManager,uint256 campaignId,address claimer)"
+        );
+
+        bytes32 structHash = keccak256(
+            abi.encode(_CLAIM_TYPEHASH, deployer, 0, claimer) // campaignId 0 for first campaign
+        );
+
+        bytes32 digest = keccak256(
+            abi.encodePacked("\x19\x01", domainSeparator, structHash)
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            TRUSTED_SIGNER_PRIVATE_KEY,
+            digest
+        );
+
+        bytes32 structHash2 = keccak256(
+            abi.encode(_CLAIM_TYPEHASH, deployer, 1, claimer) // campaignId 1 for second campaign
+        );
+
+        bytes32 digest2 = keccak256(
+            abi.encodePacked("\x19\x01", domainSeparator, structHash2)
+        );
+
+        (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(
+            TRUSTED_SIGNER_PRIVATE_KEY,
+            digest2
+        );
+
+        // Record balances before claim
+        uint256 claimerBalanceBefore = token.balanceOf(claimer);
+        uint256 campaignsBalanceBefore = token.balanceOf(address(campaigns));
+
+        // Perform claim
+        vm.startPrank(claimer);
+        campaigns.claim{value: 0.00015 ether}(deployer, 0, r, s, v, address(0));
+        campaigns.claim{value: 0.00015 ether}(
+            deployer,
+            1,
+            r2,
+            s2,
+            v2,
+            address(0)
+        );
+        vm.stopPrank();
+
+        // Verify claim amounts
+        assertEq(
+            token.balanceOf(claimer),
+            claimerBalanceBefore + campaign1Amount + campaign2Amount,
+            "Claimer did not receive correct amount"
+        );
+        assertEq(
+            token.balanceOf(address(campaigns)),
+            campaignsBalanceBefore - campaign1Amount - campaign2Amount,
+            "Campaigns contract balance not reduced correctly"
+        );
+
+        // Try claiming again - should revert
+        vm.expectRevert(abi.encodeWithSignature("AlreadyClaimed()"));
+        vm.prank(claimer);
+        campaigns.claim{value: 0.00015 ether}(deployer, 0, r, s, v, address(0));
+
+        // Try claiming with wrong fee - should revert
+        address newClaimer = makeAddr("newClaimer");
+        vm.deal(newClaimer, 1 ether);
+
+        vm.expectRevert(abi.encodeWithSignature("InvalidFee()"));
+        vm.prank(newClaimer);
+        campaigns.claim{value: 0.0001 ether}(deployer, 0, r, s, v, address(0)); // Wrong fee amount
     }
 
     // revert tests
