@@ -21,8 +21,9 @@ contract DeployTokenWithCampaign is Script {
         Earnkit.PoolConfig memory poolConfig,
         address deployer,
         address earnkitContract
-    ) internal pure returns (bytes32 salt) {
-        uint256 saltNum = 0;
+    ) internal view returns (bytes32 salt) {
+        uint256 saltNum = uint256(blockhash(block.number - 1)); // Start with a random number based on previous block hash
+        // uint256 saltNum = 0;
         while (true) {
             bytes32 saltBytes = bytes32(saltNum);
 

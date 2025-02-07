@@ -101,7 +101,8 @@ contract EarnkitTest is Test {
         string memory castHash,
         Earnkit.PoolConfig memory poolConfig
     ) internal view returns (bytes32 salt) {
-        uint256 saltNum = 0;
+        uint256 saltNum = uint256(blockhash(block.number - 1)); // Start with a random number based on previous block hash
+        // uint256 saltNum = 0;
         while (true) {
             bytes32 saltBytes = bytes32(saltNum);
 
@@ -451,6 +452,92 @@ contract EarnkitTest is Test {
             campaignInfos,
             10
         );
+
+        vm.stopPrank();
+    }
+
+    function test_deployToken_MultipleDeployments() public {
+        vm.startPrank(owner);
+
+        Earnkit.PoolConfig memory poolConfig = Earnkit.PoolConfig({
+            pairedToken: WETH,
+            devBuyFee: FEE,
+            tick: TICK
+        });
+
+        // First deployment
+        bytes32 salt1 = generateSaltForAddress(
+            "Test Token 1",
+            "TEST1",
+            INITIAL_SUPPLY,
+            1,
+            "",
+            "",
+            poolConfig
+        );
+
+        (EarnkitToken token1, uint256 positionId1) = earnkit.deployToken(
+            "Test Token 1",
+            "TEST1",
+            INITIAL_SUPPLY,
+            FEE,
+            salt1,
+            deployer,
+            1,
+            "",
+            "",
+            poolConfig
+        );
+        console.log("token1 address:", address(token1));
+
+        // Second deployment with SAME parameters but different salt will succeed
+        // Because generateSaltForAddress uses block.number in salt generation
+        vm.roll(block.number + 1); // Move to next block to get different salt
+        bytes32 salt2 = generateSaltForAddress(
+            "Test Token 1",
+            "TEST1",
+            INITIAL_SUPPLY,
+            1,
+            "",
+            "",
+            poolConfig
+        );
+
+        // This should succeed because we have a different salt
+        (EarnkitToken token2, uint256 positionId2) = earnkit.deployToken(
+            "Test Token 1",
+            "TEST1",
+            INITIAL_SUPPLY,
+            FEE,
+            salt2,
+            deployer,
+            1,
+            "",
+            "",
+            poolConfig
+        );
+        console.log("token2 address:", address(token2));
+
+        // Verify we got different addresses
+        assertTrue(
+            address(token1) != address(token2),
+            "Tokens should have different addresses"
+        );
+
+        // Now try with same salt as first deployment - this should fail
+        // vm.expectRevert("CREATE2 failed");
+        // earnkit.deployToken(
+        //     "Test Token 1",
+        //     "TEST1",
+        //     INITIAL_SUPPLY,
+        //     FEE,
+        //     salt1, // Using first salt again
+        //     deployer,
+        //     1,
+        //     "",
+        //     "",
+        //     poolConfig
+        // );
 
         vm.stopPrank();
     }
