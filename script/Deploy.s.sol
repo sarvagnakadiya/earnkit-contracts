@@ -53,6 +53,10 @@ contract DeployEarnkit is Script {
         );
 
         earnkit.setAdmin(admin, true);
+        earnkit.toggleAllowedPairedToken(
+            0x4200000000000000000000000000000000000006,
+            true
+        );
 
         // Update the factory address in LpLocker
         locker.updateEarnkitFactory(address(earnkit));

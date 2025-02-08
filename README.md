@@ -11,6 +11,10 @@ chmod +x script/deploy-campaign.sh
 take the deployed address of campaign contract and set it in .env as CAMPAIGN_CONTRACT_ADDRESS
 then deploy earnkit by running the following command
 
+
+before deploying 
+check the contract address for uniswap
+switch mainnet/sepolia properly
 # deploy earnkit & LpLocker
 ```shell
 chmod +x script/deploy.sh

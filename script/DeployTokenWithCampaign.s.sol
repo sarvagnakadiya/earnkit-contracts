@@ -22,13 +22,16 @@ contract DeployTokenWithCampaign is Script {
         address deployer,
         address earnkitContract
     ) internal view returns (bytes32 salt) {
-        uint256 saltNum = uint256(blockhash(block.number - 1)); // Start with a random number based on previous block hash
         // uint256 saltNum = 0;
+        uint256 saltNum = uint256(blockhash(block.number - 1)); // Start with a random number based on previous block hash
+
         while (true) {
             bytes32 saltBytes = bytes32(saltNum);
 
             // Get the creation code for EarnkitToken
             bytes memory creationCode = type(EarnkitToken).creationCode;
+            // console.log("creationCode:");
+            // console.logBytes(creationCode);
 
             // Encode constructor parameters
             bytes memory constructorArgs = abi.encode(
@@ -49,6 +52,7 @@ contract DeployTokenWithCampaign is Script {
 
             // Calculate the hash of the bytecode
             bytes32 bytecodeHash = keccak256(bytecode);
+            // console.logBytes32(bytecodeHash);
 
             // Calculate salt hash
             bytes32 saltHash = keccak256(abi.encode(deployer, saltBytes));
