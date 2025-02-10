@@ -28,11 +28,17 @@ chmod +x script/deploy-token-with-campaign.sh
 ```
 
 
-Deployed addresses
+Deployed addresses Base Sepolia
 - campaign contract: [0x61ffA02c609078512901508ceC6D1E54D88dF0C1](https://sepolia.basescan.org/address/0x61ffA02c609078512901508ceC6D1E54D88dF0C1)
 - ProtocolRewards: [0xfD828F95a9060655b4B7894050Ec32C406eb1451](https://sepolia.basescan.org/address/0xfD828F95a9060655b4B7894050Ec32C406eb1451)
 - earnkit: [0xdAa5AF55de378ff182fA1dE3923A475E0529608F](https://sepolia.basescan.org/address/0xdaa5af55de378ff182fa1de3923a475e0529608f)
 - LpLocker: [0xd638626b95d4Fe5cd0eC8D580485029D422333Ff](https://sepolia.basescan.org/address/0xd638626b95d4Fe5cd0eC8D580485029D422333Ff)
+
+Deployed addresses Base Mainnet
+- campaign contract: [0xf482f26F43459186a8E17A08a2FbBDf07C7aBc66](https://sepolia.basescan.org/address/0xf482f26F43459186a8E17A08a2FbBDf07C7aBc66)
+- ProtocolRewards: [0x9532e26Aa56D76cA1acdCaC36F5fc58685baf201](https://sepolia.basescan.org/address/0x9532e26Aa56D76cA1acdCaC36F5fc58685baf201)
+- earnkit: [0xDF29E0CE7fE906065608fef642dA4Dc4169f924b](https://sepolia.basescan.org/address/0xDF29E0CE7fE906065608fef642dA4Dc4169f924b)
+- LpLocker: [0x5DC3D35bE02F3BF3E152bc5DeFd449ec37e6237F](https://sepolia.basescan.org/address/0x5DC3D35bE02F3BF3E152bc5DeFd449ec37e6237F)
 
 
 ## Foundry
