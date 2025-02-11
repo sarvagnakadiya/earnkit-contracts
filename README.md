@@ -35,10 +35,10 @@ Deployed addresses Base Sepolia
 - LpLocker: [0xd638626b95d4Fe5cd0eC8D580485029D422333Ff](https://sepolia.basescan.org/address/0xd638626b95d4Fe5cd0eC8D580485029D422333Ff)
 
 Deployed addresses Base Mainnet
-- campaign contract: [0xf482f26F43459186a8E17A08a2FbBDf07C7aBc66](https://sepolia.basescan.org/address/0xf482f26F43459186a8E17A08a2FbBDf07C7aBc66)
-- ProtocolRewards: [0x9532e26Aa56D76cA1acdCaC36F5fc58685baf201](https://sepolia.basescan.org/address/0x9532e26Aa56D76cA1acdCaC36F5fc58685baf201)
-- earnkit: [0xDF29E0CE7fE906065608fef642dA4Dc4169f924b](https://sepolia.basescan.org/address/0xDF29E0CE7fE906065608fef642dA4Dc4169f924b)
-- LpLocker: [0x5DC3D35bE02F3BF3E152bc5DeFd449ec37e6237F](https://sepolia.basescan.org/address/0x5DC3D35bE02F3BF3E152bc5DeFd449ec37e6237F)
+- campaign contract: [0xf482f26F43459186a8E17A08a2FbBDf07C7aBc66](https://basescan.org/address/0xf482f26F43459186a8E17A08a2FbBDf07C7aBc66)
+- ProtocolRewards: [0x9532e26Aa56D76cA1acdCaC36F5fc58685baf201](https://basescan.org/address/0x9532e26Aa56D76cA1acdCaC36F5fc58685baf201)
+- earnkit: [0xDF29E0CE7fE906065608fef642dA4Dc4169f924b](https://basescan.org/address/0xDF29E0CE7fE906065608fef642dA4Dc4169f924b)
+- LpLocker: [0x5DC3D35bE02F3BF3E152bc5DeFd449ec37e6237F](https://basescan.org/address/0x5DC3D35bE02F3BF3E152bc5DeFd449ec37e6237F)
 
 
 ## Foundry
